@@ -53,13 +53,13 @@ CROP_FLOOR = ((430, 0), (rc.camera.get_height(), rc.camera.get_width()))
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
 BLUE = ((90, 150, 50), (120, 255, 255))  # The HSV range for the color blue
-GREEN = ((35, 50, 50), (75, 255, 255))  # The HSV range for the color green
+# GREEN = ((35, 50, 50), (75, 255, 255))  # The HSV range for the color green
 RED = ((0, 50, 50), (10, 255, 255)) # The HSV range for the color red
-ORANGE = ((9, 54, 169), (90, 255, 255)) # The HSV range for the color red
-# ORANGE = ((9, 54, 169), (36, 255, 255)) # The HSV range for the color red
-
+# ORANGE = ((9, 54, 169), (90, 255, 255)) # The HSV range for the color red
+ORANGE = ((9, 54, 169), (36, 255, 255)) # The HSV range for the color red
+GREEN = ((30, 58, 57), (80, 255, 255))
 # Color priority: Red >> Green >> Blue
-COLOR_PRIORITY = (ORANGE,)
+COLOR_PRIORITY = (GREEN, ORANGE)
 
 # >> Variables
 speed = 0.0  # The current speed of the car
