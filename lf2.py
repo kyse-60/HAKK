@@ -48,7 +48,7 @@ rc = racecar_core.create_racecar()
 MIN_CONTOUR_AREA = 30
 
 # A crop window for the floor directly in front of the car
-CROP_FLOOR = ((430, 0), (rc.camera.get_height(), rc.camera.get_width()))
+CROP_FLOOR = ((rc.camera.get_height()//3, 0), (2*rc.camera.get_height()//3, rc.camera.get_width()))
 
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
@@ -56,7 +56,7 @@ BLUE = ((90, 150, 50), (120, 255, 255))  # The HSV range for the color blue
 # GREEN = ((35, 50, 50), (75, 255, 255))  # The HSV range for the color green
 RED = ((0, 50, 50), (10, 255, 255)) # The HSV range for the color red
 # ORANGE = ((9, 54, 169), (90, 255, 255)) # The HSV range for the color red
-ORANGE = ((9, 54, 169), (36, 255, 255)) # The HSV range for the color red
+ORANGE = ((9, 64, 169), (15, 255, 255)) # The HSV range for the color red
 GREEN = ((30, 58, 57), (80, 255, 255))
 # Color priority: Red >> Green >> Blue
 COLOR_PRIORITY = (ORANGE, GREEN)
@@ -68,6 +68,7 @@ contour_center = None  # The (pixel row, pixel column) of contour
 contour_area = 0  # The area of contour
 cntr = 0
 last_error = 0
+last_angle  = 0
 
 ########################################################################################
 # Functions
@@ -104,6 +105,11 @@ def update_contour():
                     break 
 
 # [FUNCTION] The start function is run once every time the start button is pressed
+def remap_range(value, old_lower, old_upper, new_lower, new_upper):
+    normalized = (value - old_lower) / (old_upper - old_lower)
+    new_value = normalized * (new_upper - new_lower) + new_lower
+    return new_value
+
 def start():
     global speed
     global angle
@@ -121,6 +127,8 @@ def update():
     global speed
     global angle
     global cntr
+    global last_error
+    global last_angle 
 
     # rc.drive.set_max_speed(0.45)
     # Search for contours in the current color image
@@ -136,29 +144,36 @@ def update():
     if contour_center is not None:
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
-        kp = -0.009 #0.007
-        kd = 0.003
-        dterm = (error - last_error)#// rc.get_delta_time()
+        kp = -0.009 #0.05 works but dive #0.007
+        kd = -0.009 # -0.006
+        dterm = (error - last_error)/ rc.get_delta_time()
         angle = kp * error + kd * dterm
         angle = max(-1, min(1, angle))
         cntr = 0
 
         last_error = error 
+        last_angle = angle 
         
     
-    else: # if we dont see the contour_center for a while it should go backwards
+    else: 
         cntr += 1
         if cntr > 10:
-            angle = -1
+            angle = last_angle 
 
-    
+    # if angle ==-1:
+    #     speed = remap_range(angle, -1, 0, 0.9, 1)
+    # elif angle == 1:
+    #     speed = remap_range(angle, 0, 1, 1, 0.8)
+    # else: 
+    speed = 1
 
     # Use the triggers to control the car's speed
     rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
     lt = rc.controller.get_trigger(rc.controller.Trigger.LEFT)
     # speed = 0.8 if angle == 0 else 0.5
 
-    rc.drive.set_speed_angle(1, angle)
+    print("angle:", angle, "speed:", speed)
+    rc.drive.set_speed_angle(speed, angle)
 
 # [FUNCTION] update_slow() is similar to update() but is called once per second by
 # default. It is especially useful for printing debug messages, since printing a 
@@ -186,7 +201,7 @@ def update_slow():
             s[int(contour_center[1] / 20)] = "|"
             print("".join(s) + " : area = " + str(contour_area))
 
-    print("angle:", angle, "speed:", speed)
+    #print("angle:", angle, "speed:", speed)
 
 
 ########################################################################################
