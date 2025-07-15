@@ -137,13 +137,12 @@ def update():
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
         kp = -0.009 #0.007
-        kd = 0.00
-        dterm = (error - last error)#// rc.get
-        angle = kp * error + kd *
+        kd = 0.003
+        dterm = (error - last_error)#// rc.get_delta_time()
+        angle = kp * error + kd * dterm
         angle = max(-1, min(1, angle))
         cntr = 0
 
-        
         last_error = error 
         
     
