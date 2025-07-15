@@ -120,7 +120,7 @@ def start():
 
     # Set update_slow to refresh every half second
     rc.set_update_slow_time(0.5)
-
+    #jkshdkjasdkjhasdhkjgadkjhad
     # Print start message
     print(
         ">> Lab 2A - Color Image Line Following\n"
