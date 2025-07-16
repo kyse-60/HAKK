@@ -60,7 +60,7 @@ integral_error = 0.0
 angle = 0.0
 speed = 0.0 
 OFFSET_FULL_STEER = 50
-GAIN = 2.4
+GAIN = 2.5#2.4
 angles=[]
 errors = []
 CurrFunc = np.polyfit([0,1], [0,0], deg =1)
@@ -84,8 +84,8 @@ def update_lidar():
     global right_avg
 
     scan = rc.lidar.get_samples()
-    left_avg = rc_utils.get_lidar_average_distance(scan,300,60)
-    right_avg =rc_utils.get_lidar_average_distance(scan,60,60)
+    left_avg = rc_utils.get_lidar_average_distance(scan,270,60)
+    right_avg =rc_utils.get_lidar_average_distance(scan,90,60)
     if left_avg > 500 :
         left_avg = rc_utils.get_lidar_average_distance(scan,350,10)
         if left_avg > 300 : left_avg = 0
@@ -116,26 +116,26 @@ def update():
 
         offset = RIGHT - LEFT
         offset_norm = offset / OFFSET_FULL_STEER
-      #  P = math.tanh(GAIN *offset_norm)
+        P = math.tanh(GAIN *offset_norm)
         kp = 0.006
-        kd = 0.00#6
+        kd = 0.002
         ki = 0.000#1
         integral_error += (rc.get_delta_time() * offset)
-        P = kp * (offset)
+     #   P = kp * (offset)
         I = ki * integral_error
         D = kd * (offset - last_offset)
         last_offset = offset
-        angle = P + I + D + CurrFunc(offset)
+        angle = P + I + D #+ CurrFunc(offset)
 
         angle = rc_utils.clamp(angle, -1, 1)
     else: angle  = 0.0
 
-    CurrFunc= GainTuneFun(last_offset , angle)
+  #  CurrFunc= GainTuneFun(last_offset , angle)
 
 
     
     #Speed control
-    speed_constant = 0.8
+    speed_constant = 0.9
     if (left_avg != 0 and  right_avg != 0):
         if (left_avg/right_avg  <= 1): ratio =left_avg/right_avg
         elif (right_avg/left_avg <= 1):  ratio = right_avg/left_avg
