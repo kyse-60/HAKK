@@ -117,7 +117,7 @@ def update():
         offset = RIGHT - LEFT
         offset_norm = offset / OFFSET_FULL_STEER
         P = math.tanh(GAIN *offset_norm)
-        kp = 0.006
+        kp = 0.06
         kd = 0.002
         ki = 0.000#1
         integral_error += (rc.get_delta_time() * offset)
