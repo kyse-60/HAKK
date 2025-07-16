@@ -7,7 +7,7 @@ File Name: lab_f.py
 
 Title: Lab F - Line Follower
 
-Author: [PLACEHOLDER] << [Write your name or team name here]
+Author: RACECAR Team 7
 
 Purpose: Write a script to enable fully autonomous behavior from the RACECAR. The
 RACECAR should automatically identify the color of a line it sees, then drive on the
@@ -130,13 +130,9 @@ def update():
     global last_error
     global last_angle 
 
-    # rc.drive.set_max_speed(0.45)
     # Search for contours in the current color image
     update_contour()
 
-    # TODO Part 3: Determine the angle that the RACECAR should receive based on the current 
-    # position of the center of line contour on the screen. Hint: The RACECAR should drive in
-    # a direction that moves the line back to the center of the screen.
 
     # Choose an angle based on contour_center
     # If we could not find a contour, keep the previous angle
