@@ -3,16 +3,15 @@ MIT BWSI Autonomous RACECAR
 MIT License
 racecar-neo-outreach-labs
 
-File Name: template.py << [Modify with your own file name!]
+File Name: wf2.py
 
-Title: [PLACEHOLDER] << [Modify with your own title]
+Title: Wall Follower 2
 
-Author: [PLACEHOLDER] << [Write your name or team name here]
+Author: RACECAR Team 7
 
-Purpose: [PLACEHOLDER] << [Write the purpose of the script here]
+Purpose: Wall Following on the 30 meter long course
 
-Expected Outcome: [PLACEHOLDER] << [Write what you expect will happen when you run
-the script.]
+Expected Outcome: Successfully navigates the track!
 """
 
 ########################################################################################
@@ -34,7 +33,7 @@ from scipy.ndimage import convolve1d
 
 # If this file is nested inside a folder in the labs folder, the relative path should
 # be [1, ../../library] instead.
-sys.path.insert(1, '../../library')
+sys.path.insert(0, '../library')
 import racecar_core
 import racecar_utils as rc_utils
 
@@ -63,6 +62,8 @@ class WallFollower():
         self.r_frame = []
         self.f_frame = []
     def update(self):
+        # get left, right, and forward scan data, 
+        # using the median of the past 5 measurements for smoothing
         scan = np.copy(self.rc.lidar.get_samples())
         self.r_frame.append(rc_utils.get_lidar_average_distance(scan, 90-45, 10))
         self.l_frame.append(rc_utils.get_lidar_average_distance(scan, 270+45, 10))
@@ -74,71 +75,29 @@ class WallFollower():
         right = np.median(self.r_frame)
         left = np.median(self.l_frame)
         fwd = np.median(self.f_frame)
+        # if a bad measurement, just do what we did last
         if right == 0 or left == 0 or fwd == 0:
             return self.prev_sent
+        # using a proportion, if the walls are wider this code should still work (not hard coded for track width)
         diff_prop = (right-left)/(right+left)
         Kp = 2
         Kd = 4
+        # one time unit d-term
         d_term = (diff_prop - self.prev_diff)/ rc.get_delta_time()
         angle = Kp*diff_prop + Kd*d_term
+        # a better speed control may be better
+        # may need to change for actual car
         speed = 1 if fwd > 50 else fwd/100
+
         self.prev_diff = diff_prop
         self.prev_sent = cap(speed), cap(angle)
-        return self.prev_sent
-
-
-# >> Constants
-# The smallest contour we will recognize as a valid contour
-MIN_CONTOUR_AREA = 30
-
-# A crop window for the floor directly in front of the car
-CROP_FLOOR = ((300, 0), (rc.camera.get_height(), rc.camera.get_width()))
-
-# HSV Color Thresholds
-BLUE = ((90, 150, 150), (120, 255, 255))  # The HSV range for the color blue
+        return self.prev_sent # this is now a bit misleading, prev_sent is in this moment the current speed and angle
 
 wf = None
 
 ########################################################################################
 # Functions
 ########################################################################################
-
-# [FUNCTION] Update the contour_center and contour_area each frame and display image
-def update_contour():
-    global contour_center
-    global contour_area
-
-    image = rc.camera.get_color_image()
-
-    # Crop the image to the floor directly in front of the car
-    image = rc_utils.crop(image, CROP_FLOOR[0], CROP_FLOOR[1])
-
-    if image is None:
-        contour_center = None
-        contour_area = 0
-    else:
-        # Find all of the contours of the saved color
-        contours = rc_utils.find_contours(image, BLUE[0], BLUE[1])
-
-        # Select the largest contour
-        contour = rc_utils.get_largest_contour(contours, MIN_CONTOUR_AREA)
-
-        if contour is not None:
-            # Calculate contour information
-            contour_center = rc_utils.get_contour_center(contour)
-            contour_area = rc_utils.get_contour_area(contour)
-
-            # Draw contour onto the image
-            rc_utils.draw_contour(image, contour)
-            rc_utils.draw_circle(image, contour_center)
-
-        else:
-            contour_center = None
-            contour_area = 0
-
-        # Display the image to the screen
-        rc.display.show_color_image(image)
-
 
 # [FUNCTION] The start function is run once every time the start button is pressed
 def start():
