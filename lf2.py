@@ -45,10 +45,10 @@ rc = racecar_core.create_racecar()
 
 # >> Constants
 # The smallest contour we will recognize as a valid contour
-MIN_CONTOUR_AREA = 30
+MIN_CONTOUR_AREA = 90
 
 # A crop window for the floor directly in front of the car
-CROP_FLOOR = ((rc.camera.get_height()//3, 0), (2*rc.camera.get_height()//3, rc.camera.get_width()))
+CROP_FLOOR = ((rc.camera.get_height()//6, 0), (2*rc.camera.get_height()//3, rc.camera.get_width()))
 
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
@@ -56,7 +56,8 @@ BLUE = ((90, 150, 50), (120, 255, 255))  # The HSV range for the color blue
 # GREEN = ((35, 50, 50), (75, 255, 255))  # The HSV range for the color green
 RED = ((0, 50, 50), (10, 255, 255)) # The HSV range for the color red
 # ORANGE = ((9, 54, 169), (90, 255, 255)) # The HSV range for the color red
-ORANGE = ((9, 64, 169), (15, 255, 255)) # The HSV range for the color red
+ORANGE = ((4, 75, 169), (15, 255, 255)) # The HSV range for the color red
+# ORANGE = ((9, 68, 169), (15, 255, 255)) # The HSV range for the color red
 GREEN = ((30, 58, 57), (80, 255, 255))
 # Color priority: Red >> Green >> Blue
 COLOR_PRIORITY = (ORANGE, GREEN)
@@ -113,6 +114,8 @@ def remap_range(value, old_lower, old_upper, new_lower, new_upper):
 def start():
     global speed
     global angle
+    with open("log.txt", "a") as f:
+        print("\n\nNEW\n\n", file=f)
 
 # [FUNCTION] After start() is run, this function is run once every frame (ideally at
 # 60 frames per second or slower depending on processing speed) until the back button
@@ -141,16 +144,14 @@ def update():
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
         kp = -0.009 #0.05 works but dive #0.007
-        kd = -0.009 # -0.006
+        kd = -0.003 # -0.006, -0.009
         dterm = (error - last_error)/ rc.get_delta_time()
-        angle = kp * error + kd * dterm
+        angle = kp * error + kd*dterm
         angle = max(-1, min(1, angle))
         cntr = 0
 
         last_error = error 
         last_angle = angle 
-        
-    
     else: 
         cntr += 1
         if cntr > 10:
@@ -167,8 +168,9 @@ def update():
     rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
     lt = rc.controller.get_trigger(rc.controller.Trigger.LEFT)
     # speed = 0.8 if angle == 0 else 0.5
-
-    print("angle:", angle, "speed:", speed)
+    # with open("log.txt", "a") as f:
+    #     if rt:
+    #         print("angle:", angle, "speed:", speed, file=f)
     rc.drive.set_speed_angle(speed, angle)
 
 # [FUNCTION] update_slow() is similar to update() but is called once per second by

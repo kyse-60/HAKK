@@ -79,6 +79,13 @@ def start():
 # [FUNCTION] After start() is run, this function is run once every frame (ideally at
 # 60 frames per second or slower depending on processing speed) until the back button
 # is pressed  
+
+def remap_range(value, old_lower, old_upper, new_lower, new_upper):
+    normalized = (value - old_lower) / (old_upper - old_lower)
+    new_value = normalized * (new_upper - new_lower) + new_lower
+    return new_value
+
+
 def update_lidar():
     global left_avg
     global right_avg
@@ -99,6 +106,9 @@ def update_lidar():
         if right_avg > 300 : right_avg = 0
 
   #  print(f'left avg: {left_avg} and right avg:{right_avg}')
+
+
+
 
 
 def update():
@@ -148,6 +158,9 @@ def update():
     else:
         speed = 0.5
 
+    speed = remap_range(speed, 0,1, 0.6, 1)
+
+    speed = 1
     
 
    # print(f'speed:{speed} and angle: {angle}')
