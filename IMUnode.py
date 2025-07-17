@@ -20,12 +20,15 @@ topic with accurate attitude estimations.
 """
 
 import rclpy
+import racecar_core
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, MagneticField
 from geometry_msgs.msg import Vector3
 import numpy as np
 import math
 import time
+
+rc = racecar_core.create_racecar()
 
 class CompFilterNode(Node):
     def __init__(self):
@@ -48,25 +51,25 @@ class CompFilterNode(Node):
     # [FUNCTION] Called when new IMU data is received, attidude calc completed here as well
     def imu_callback(self, data):
         # TODO: Grab linear acceleration and angular velocity values from subscribed data points
-        accel = ___
-        gyro = ___
+        accel = rc.physics.get_linear_acceleration()
+        gyro = rc.physics.get_angular_velocity()
 
         # TODO: Calculate time delta
-        now = ___ # Current ROS time
-        dt = ___ # Time delta
+        now = rclpy.Time.now() # Current ROS time
+        dt = rc.get_delta_time() # Time delta
         self.prev_time = now # refresh checkpoint
 
         # Attitude angle derivations, see full formula here:
         # https://ahrs.readthedocs.io/en/latest/filters/complementary.html
     
         # TODO: Derive tilt angles from accelerometer
-        accel_roll = ___ # theta_x
-        accel_pitch = ___ # theta_y - seems correct
+        accel_roll = accel[0] # theta_x
+        accel_pitch = accel[1] # theta_y - seems correct
 
         # TODO: Integrate gyroscope to get attitude angles
-        gyro_roll = ___ # theta_xt
-        gyro_pitch = ___ # theta_yt
-        gyro_yaw = ___ # theta_zt
+        gyro_roll = gyro[0] # theta_xt
+        gyro_pitch = gyro[1] # theta_yt
+        gyro_yaw = gyro[2] # theta_zt
 
         # TODO: Compute yaw angle from magnetometer
         if self.mag:
