@@ -173,7 +173,7 @@ def update():
     update_contour()
     scan = rc.lidar.get_samples()
     front = rc_utils.get_lidar_average_distance(scan,0,45)
-    close_front = rc_utils.get_lidar_average_distance(scan,0,10)
+    skinny_front = rc_utils.get_lidar_average_distance(scan,0,10)
     Rside = rc_utils.get_lidar_average_distance(scan,270,45)
     Bside = rc_utils.get_lidar_average_distance(scan,90,45)
     if contour_center is not None:
@@ -226,7 +226,7 @@ def update():
                 error = Bside - setpoint
                 angle = kp * error
                 angle = clamp(angle, -1, 1)
-            if(front < 80):
+            if(skinny_front < 80):
                 state = "searching"
 
     
