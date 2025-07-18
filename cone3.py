@@ -20,10 +20,10 @@ rc = racecar_core.create_racecar()
 
 # >> Constants
 # The smallest contour we will recognize as a valid contour
-MIN_CONTOUR_AREA = 30
+MIN_CONTOUR_AREA = 50
 
 # A crop window for the floor directly in front of the car
-CROP_FLOOR = ((230, 0), (rc.camera.get_height(), rc.camera.get_width()))
+CROP_FLOOR = ((300, 0), (rc.camera.get_height(), rc.camera.get_width()))
 
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
@@ -43,9 +43,9 @@ color = "None" #true is red, false is blue, none is neither
 lastcolor = None
 lastarea = 0
 
-circular_dist = 100
+circular_dist = 30
 
-kp = -0.01
+kp = -0.05
 
 
 ########################################################################################
@@ -60,7 +60,7 @@ def update_contour():
 
     global color
 
-    color = "None"
+    color = None
     image = rc.camera.get_color_image()
 
     if image is None:
@@ -113,7 +113,7 @@ def update_contour():
                         rc_utils.draw_circle(image, contour_center)                        
 
         else:
-            color = "None"
+            color = None
 
         # Display the image to the screen only if display is available
         if hasattr(rc.display, "show_color_image"):
@@ -168,50 +168,83 @@ def update():
     global color,contour_area,lastarea,lastcolor
     global circular_dist
     global kp,state
+
+
+
+    CURRENTCONE = "NONE"
+
+    LASTSTATE = "NONE"
+
+
+
     rc.drive.set_max_speed(0.45)
     # Search for contours in the current color image
+    CURRENTCONE = color
     update_contour()
     scan = rc.lidar.get_samples()
     front = rc_utils.get_lidar_average_distance(scan,0,45)
     skinny_front = rc_utils.get_lidar_average_distance(scan,0,10)
     Rside = rc_utils.get_lidar_average_distance(scan,270,45)
     Bside = rc_utils.get_lidar_average_distance(scan,90,45)
+    speed = 0.3
     if contour_center is not None:
         if state == "searching":
+            if(front<60):
+                    print("skip")
+                    state = "found"
             print("----------SEARCHING----------")
+            lastcolor = None
+            '''
             if(lastcolor == "None"):
+                print(lastcolor)
                 angle = 0
-                speed = 0.8
             else:
                 state = "pass"
+            '''
+            
 
             angle = 0
-            if(front < 160 and contour_area > 1000):
+            if(front < 120): # and contour_area > 1000
+                print("front: ", front)
                 state = "approaching"
         elif state == "approaching":
             print("----------APPROACHING----------")
+            print("color: ", color)
+            if(front<60):
+                    print("skip")
+                    state = "found"
+            speed = 0.1
+            
             setpoint = rc.camera.get_width()//2
             error = (setpoint - contour_center[1])
+            kp = -0.005
             angle = kp * error
             angle = clamp(angle,-1,1) 
-            if(lastarea is not None and abs(lastarea - contour_area) > 1500) or lastcolor != color:
-                state = "pass"
+            #if(lastarea is not None and abs(lastarea - contour_area) > 1500) or lastcolor != color:
+            #    state = "pass"
+            
+            #if(lastcolor is not None and lastcolor != color):
+            #    state = "pass"
             lastarea = contour_area
-            lastcolor = color
-            if(front < 120 and color != "None" and contour_area > 15000):
+            if color is not None and color != "None": lastcolor = color
+
+            if(front < 100): # and color != "None" and contour_area > 15000
+                print("front: ", front)
                 state = "found"
         elif state == "found":
+            speed = 0.2
             print("----------FOUND----------")
             print("front: ", front, "contour area: ", contour_area)
             if(color == "RED"):
                 angle = 1
             elif(color == "BLUE"):
                 angle = -1
-            lastcolor = color
+            if color is not None and color != "None": lastcolor = color
             print(color)
-            if(front == 0 and Rside > 80): #bruh abs(lastarea - contour_area) > 7000 or 
+            if(front == 0 and(Rside > 20 or Bside > 20) ): #bruh abs(lastarea - contour_area) > 7000 or 
                 state = "pass"
         elif state == "pass":
+            kp = -0.05
             print("----------PASS----------")
             print(lastcolor)
             if(lastcolor == "RED"):
@@ -220,18 +253,29 @@ def update():
                 error = setpoint - Rside
                 angle = kp * error
                 angle = clamp(angle, -1, 1)
+                angle = -1
             elif(lastcolor == "BLUE"):
                 print("BLUE")
                 setpoint = circular_dist
                 error = Bside - setpoint
                 angle = kp * error
                 angle = clamp(angle, -1, 1)
-            if(skinny_front < 80):
+                angle = 1
+            if(skinny_front < 140 and skinny_front != 0):
+
                 state = "searching"
 
+    if(LASTSTATE == state and lastcolor != color):
+        print("LASTSTATE: ", LASTSTATE, " STATE: ", state)
+        print("lastcolor", lastcolor ,"color ", color )
+        print("please stop this madness")
+        
     
-    speed = 0.1
-    rc.drive.set_speed_angle(0.1, angle)
+    LASTSTATE = state
+
+    
+    
+    rc.drive.set_speed_angle(speed, angle)
     print("speed: ", round(speed, 2), "angle: ", round(angle, 2))
 
 def update_slow():
@@ -263,3 +307,73 @@ def update_slow():
 if __name__ == "__main__":
     rc.set_start_update(start, update, update_slow)
     rc.go()
+
+
+
+
+'''
+def get_lidar_average_distance_filtered(scan, angle, window, max_distance=100):
+    """
+    Gets the average distance of lidar readings within a specific angular window,
+    but only considers readings within max_distance.
+    
+    Args:
+        scan: lidar scan data
+        angle: center angle to look at
+        window: angular window (total degrees to consider)
+        max_distance: maximum distance to consider (ignores readings beyond this)
+    
+    Returns:
+        Average distance of valid readings within the window and distance limit
+    """
+    # Get all samples in the angular window
+    samples = rc_utils.get_lidar_closest_point(scan, angle, window)
+    
+    # Filter out readings beyond max_distance and invalid readings (0)
+    valid_samples = []
+    for i in range(len(scan)):
+        # Calculate angle for this sample
+        sample_angle = i * 360 / len(scan)
+        
+        # Check if this sample is within our angular window
+        angle_diff = abs(sample_angle - angle)
+        if angle_diff > 180:
+            angle_diff = 360 - angle_diff
+            
+        if angle_diff <= window / 2:
+            distance = scan[i]
+            if 0 < distance <= max_distance:  # Valid reading within our distance limit
+                valid_samples.append(distance)
+    
+    # Return average of valid samples, or 0 if no valid samples
+    if valid_samples:
+        return sum(valid_samples) / len(valid_samples)
+    else:
+        return 0
+
+# Alternative simpler version if you just want to cap the distance
+def get_lidar_average_distance_capped(scan, angle, window, max_distance=100):
+    """
+    Gets the average distance but caps any reading above max_distance to max_distance
+    """
+    # Get the normal average
+    avg_distance = rc_utils.get_lidar_average_distance(scan, angle, window)
+    
+    # Cap it to max_distance
+    if avg_distance > max_distance:
+        return max_distance
+    else:
+        return avg_distance
+
+# Usage in your update function:
+def update():
+    # ... existing code ...
+    
+    scan = rc.lidar.get_samples()
+    
+    # Use the filtered version - only consider readings within 100cm
+    front = get_lidar_average_distance_filtered(scan, 0, 45, max_distance=100)
+    skinny_front = get_lidar_average_distance_filtered(scan, 0, 10, max_distance=100)
+    Rside = get_lidar_average_distance_filtered(scan, 270, 45, max_distance=100)
+    Bside = get_lidar_average_distance_filtered(scan, 90, 45, max_distance=100)
+'''
