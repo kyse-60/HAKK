@@ -63,13 +63,13 @@ class CompFilterNode(Node):
         # https://ahrs.readthedocs.io/en/latest/filters/complementary.html
     
         # TODO: Derive tilt angles from accelerometer
-        accel_roll = math.atan2(accel[1],accel[2]) # theta_x
-        accel_pitch = math.atan2(-accel[0],(math.sqrt((accel[1]**2) + (accel[2]**2))))
+        accel_roll = math.atan2(accel.x,accel.y) # theta_x
+        accel_pitch = math.atan2(-accel.x,(math.sqrt((accel.y**2) + (accel.z**2))))
 
         # TODO: Integrate gyroscope to get attitude angles
-        gyro_roll = self.roll + gyro[0]*dt # theta_xt
-        gyro_pitch = self.pitch + gyro[1]*dt # theta_yt
-        gyro_yaw = self.yaw + gyro[2]*dt # theta_zt
+        gyro_roll = self.roll + gyro.x*dt # theta_xt
+        gyro_pitch = self.pitch + gyro.y*dt # theta_yt
+        gyro_yaw = self.yaw + gyro.z*dt # theta_zt
 
         # TODO: Compute yaw angle from magnetometer
         if self.mag:
