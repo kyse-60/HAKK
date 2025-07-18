@@ -226,7 +226,7 @@ def update():
 
         if(color == None):
             angle = 0
-        if(front < 100 and front != 0 and color is not None):
+        if(front < 90 and front != 0 and color is not None):
             print("---------APPROACHING---------")
             if(color == True): #RED
                 print("RED")

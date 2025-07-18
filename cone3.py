@@ -1,28 +1,3 @@
-"""
-MIT BWSI Autonomous RACECAR
-MIT License
-racecar-neo-outreach-labs
-
-File Name: lab_f.py
-
-Title: Lab F - Line Follower
-
-Author: [PLACEHOLDER] << [Write your name or team name here]
-
-Purpose: Write a script to enable fully autonomous behavior from the RACECAR. The
-RACECAR should automatically identify the color of a line it sees, then drive on the
-center of the line throughout the obstacle course. The RACECAR should also identify
-color changes, following colors with higher priority than others. Complete the lines 
-of code under the #TODO indicators to complete the lab.
-
-Expected Outcome: When the user runs the script, they are able to control the RACECAR
-using the following keys:
-- When the right trigger is pressed, the RACECAR moves forward at full speed
-- When the left trigger is pressed, the RACECAR, moves backwards at full speed
-- The angle of the RACECAR should only be controlled by the center of the line contour
-- The RACECAR sees the color RED as the highest priority, then GREEN, then BLUE
-"""
-
 ########################################################################################
 # Imports
 ########################################################################################
@@ -53,23 +28,24 @@ CROP_FLOOR = ((230, 0), (rc.camera.get_height(), rc.camera.get_width()))
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
 BLUE = ((90, 150, 50), (120, 255, 255))   # The HSV range for the color green
-RED = ((0, 50, 50), (10, 255, 255))  
+RED = ((170, 50, 50), (10, 255, 255))  
 
 # Color priority: Red >> Green >> Blue
+
+state = None
 
 # >> Variables
 speed = 0.0  # The current speed of the car
 angle = 0.0  # The current angle of the car's wheels
 contour_center = None  # The (pixel row, pixel column) of contour
 contour_area = 0  # The area of contour
-
-color = None #true is red, false is blue, none is neither
-
+color = "None" #true is red, false is blue, none is neither
 lastcolor = None
-
 lastarea = 0
 
-kp = -0.003
+circular_dist = 100
+
+kp = -0.01
 
 
 ########################################################################################
@@ -84,6 +60,7 @@ def update_contour():
 
     global color
 
+    color = "None"
     image = rc.camera.get_color_image()
 
     if image is None:
@@ -104,7 +81,7 @@ def update_contour():
         if contourR is not None or contourB is not None:
                 if contourR is None:
                     contour = contourB
-                    color = False
+                    color = "BLUE"
                     contour_center = rc_utils.get_contour_center(contourB)
                     contour_area = rc_utils.get_contour_area(contourB)
                     rc_utils.draw_contour(image,contourB)
@@ -112,13 +89,31 @@ def update_contour():
 
                 elif contourB is None:
                     contour = contourR
-                    color = True
+                    color = "RED"
                     contour_center = rc_utils.get_contour_center(contourR)
                     contour_area = rc_utils.get_contour_area(contourR)
                     rc_utils.draw_contour(image,contourR)
                     rc_utils.draw_circle(image, contour_center)
+                else:
+                    contourB_area = rc_utils.get_contour_area(contourB)
+                    contourR_area = rc_utils.get_contour_area(contourR) 
+                    if contourR_area > contourB_area:
+                        contour = contourR
+                        color = "RED"
+                        contour_center = rc_utils.get_contour_center(contourR)
+                        contour_area = rc_utils.get_contour_area(contourR)
+                        rc_utils.draw_contour(image,contourR)
+                        rc_utils.draw_circle(image, contour_center)
+                    else:
+                        contour = contourB
+                        color = "BLUE"
+                        contour_center = rc_utils.get_contour_center(contourB)
+                        contour_area = rc_utils.get_contour_area(contourB)
+                        rc_utils.draw_contour(image,contourB)
+                        rc_utils.draw_circle(image, contour_center)                        
+
         else:
-            color = None
+            color = "None"
 
         # Display the image to the screen only if display is available
         if hasattr(rc.display, "show_color_image"):
@@ -126,11 +121,21 @@ def update_contour():
 
 # [FUNCTION] The start function is run once every time the start button is pressed
 def start():
-    global speed
-    global angle
+    global state
+    global speed,angle
+    global color,contour_area,lastarea,lastcolor
+    global kp
+
     # Initialize variables
+    state = "searching"
+
     speed = 0
     angle = 0
+
+    color = "None"
+    contour_area = None
+    lastarea = None
+    lastcolor = None
 
     # Set initial driving speed and angle
     rc.drive.set_speed_angle(speed, angle)
@@ -159,137 +164,76 @@ def update():
     After start() is run, this function is run every frame until the back button
     is pressed
     """
-    global speed
-    global angle
-
-    global color
-    global contour_area
-    global lastarea
-
-    global lastcolor
-
-    global kp
+    global speed,angle
+    global color,contour_area,lastarea,lastcolor
+    global circular_dist
+    global kp,state
     rc.drive.set_max_speed(0.45)
     # Search for contours in the current color image
     update_contour()
     scan = rc.lidar.get_samples()
-    # TODO Part 3: Determine the angle that the RACECAR should receive based on the current 
-    # position of the center of line contour on the screen. Hint: The RACECAR should drive in
-    # a direction that moves the line back to the center of the screen.
-
-    # Choose an angle based on contour_center
-    # If we could not find a contour, keep the previous angle
-
+    front = rc_utils.get_lidar_average_distance(scan,0,45)
+    close_front = rc_utils.get_lidar_average_distance(scan,0,10)
+    Rside = rc_utils.get_lidar_average_distance(scan,270,45)
+    Bside = rc_utils.get_lidar_average_distance(scan,90,45)
     if contour_center is not None:
-        speed = 0.5
-        '''
-        if(contour_area == 0 or lastarea == contour_area):
-            print("NOTHING IS SHOWING", lastcolor)
-            if(lastcolor == True):
-                angle = -1
-            elif(lastcolor == False):
-                angle = 1
-        '''
+        if state == "searching":
+            print("----------SEARCHING----------")
+            if(lastcolor == "None"):
+                angle = 0
+                speed = 0.8
+            else:
+                state = "pass"
 
-        if(abs(contour_area - lastarea) > 5000 or contour_area == 0 or (lastarea > 663.0 and lastarea == contour_area)):
-
-            
-            back =rc_utils.get_lidar_average_distance(scan,180,200)
-            print("-------BACK-----: ", back)
-
-            print("CHANGE")
-
-            if(contour_area - lastarea > 5000):
-                print("contour_area - lastarea > 5000")
-                
-            if(contour_area == 0):
-                print("contour_area == 0")
-            if(lastarea == contour_area):
-                print("lastarea == contour_area")
-                print(contour_area)
-            
-            
-            if(lastcolor == True):
-                angle = remap_range(back, 0, 400, 0.1, -1)
-            elif(lastcolor == False):
-                angle = remap_range(back, 0, 400, -0.1, 1)
-            
-        elif(color == True):
-            '''
-
-            print("RED")
-            setpoint = 100
-            REDside =rc_utils.get_lidar_average_distance(scan,-45, 90)
-            print("------------REDSIDE: ", REDside)
-            error = setpoint - REDside
-            #kp = -0.005 # orev value -0.003125
-            angle = kp * error
-            angle = clamp(angle,-1,1)
-            lastcolor = True
-            '''
-            print("RED")
-            setpoint = rc.camera.get_width()//10
-            setpoint = 0
-            error = setpoint - contour_center[1]
-            #kp = -0.005 # orev value -0.003125
-            angle = kp * error
-            angle = clamp(angle,-1,1)
-            lastcolor = True
-
-            
-        elif(color == False): #BLUE
-            print("BLUE")
-            setpoint = (9*rc.camera.get_width())//10
-            setpoint = rc.camera.get_width()
-            error = setpoint - contour_center[1]
-            #kp = -0.005 # orev value -0.003125
+            angle = 0
+            if(front < 160 and contour_area > 1000):
+                state = "approaching"
+        elif state == "approaching":
+            print("----------APPROACHING----------")
+            setpoint = rc.camera.get_width()//2
+            error = (setpoint - contour_center[1])
             angle = kp * error
             angle = clamp(angle,-1,1) 
-            lastcolor = False
+            if(lastarea is not None and abs(lastarea - contour_area) > 1500) or lastcolor != color:
+                state = "pass"
+            lastarea = contour_area
+            lastcolor = color
+            if(front < 120 and color != "None" and contour_area > 15000):
+                state = "found"
+        elif state == "found":
+            print("----------FOUND----------")
+            print("front: ", front, "contour area: ", contour_area)
+            if(color == "RED"):
+                angle = 1
+            elif(color == "BLUE"):
+                angle = -1
+            lastcolor = color
+            print(color)
+            if(front == 0 and Rside > 80): #bruh abs(lastarea - contour_area) > 7000 or 
+                state = "pass"
+        elif state == "pass":
+            print("----------PASS----------")
+            print(lastcolor)
+            if(lastcolor == "RED"):
+                print("RED")
+                setpoint = circular_dist
+                error = setpoint - Rside
+                angle = kp * error
+                angle = clamp(angle, -1, 1)
+            elif(lastcolor == "BLUE"):
+                print("BLUE")
+                setpoint = circular_dist
+                error = Bside - setpoint
+                angle = kp * error
+                angle = clamp(angle, -1, 1)
+            if(front < 80):
+                state = "searching"
 
-        else:
-            angle = 0
-        lastarea = contour_area
-        #print("I literally dont know whats happening")
-        print("speed: ", round(speed, 2), " angle: ", round(angle, 2))           
-
-        #BLUE
-    else: #nothin
-        print("NOTHING IS SHOWING")
-        if(lastcolor == True):
-            angle = -1
-        elif(lastcolor == False):
-            angle = 1
-
-
-        speed = 0.5
-        angle = 0
-    # Use the triggers to control the car's speed
-    '''
-    rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
-    lt = rc.controller.get_trigger(rc.controller.Trigger.LEFT)
-    speed = rt - lt
-    '''
     
-    if color == True:
-        angle *= 1.05
-    angle = clamp(angle,-1,1) 
-    rc.drive.set_speed_angle(speed, angle)
+    speed = 0.1
+    rc.drive.set_speed_angle(0.1, angle)
+    print("speed: ", round(speed, 2), "angle: ", round(angle, 2))
 
-    # Print the current speed and angle when the A button is held down
-    if rc.controller.is_down(rc.controller.Button.A):
-        print("Speed:", speed, "Angle:", angle)
-
-    # Print the center and area of the largest contour when B is held down
-    if rc.controller.is_down(rc.controller.Button.B):
-        if contour_center is None:
-            print("No contour found")
-        else:
-            print("Center:", contour_center, "Area:", contour_area)
-
-# [FUNCTION] update_slow() is similar to update() but is called once per second by
-# default. It is especially useful for printing debug messages, since printing a 
-# message every frame in update is computationally expensive and creates clutter
 def update_slow():
     """
     After start() is run, this function is run at a constant rate that is slower
