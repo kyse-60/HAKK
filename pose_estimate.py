@@ -40,7 +40,7 @@ class CompFilterNode(Node):
         self.publisher_pose_estimate = self.create_publisher(Vector3, '/pose_estimate', 10) # output as [roll, pitch, yaw] angles
 
         self.prev_time = self.get_clock().now() # initialize time checkpoint
-        self.alpha = 0.98 # TODO: Determine an alpha value that works with the complementary filter
+        self.alpha = 0.95 # TODO: Determine an alpha value that works with the complementary filter
 
         # set up attitude params
         self.vx = 0.0
@@ -93,9 +93,9 @@ class CompFilterNode(Node):
             mag_accel_yaw = self.yaw
         
         # TODO: Fuse gyro, mag, and accel derivations in complemtnary filter
-        self.roll = self.alpha*accel_roll + (1-self.alpha)*gyro_roll
-        self.pitch = self.alpha*accel_pitch + (1-self.alpha)*gyro_pitch
-        self.yaw = self.alpha*mag_accel_yaw + (1-self.alpha)*gyro_yaw
+        self.roll = self.alpha*gyro_roll + (1-self.alpha)*accel_roll
+        self.pitch = self.alpha*gyro_pitch + (1-self.alpha)*accel_pitch
+        self.yaw = self.alpha*gyro_yaw + (1-self.alpha)*mag_accel_yaw
         self.posx = self.posx + self.vx * dt
         self.posy = self.posy + self.vy * dt
         # TODO: Publish to pose_estimate topic

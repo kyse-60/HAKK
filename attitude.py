@@ -40,7 +40,7 @@ class CompFilterNode(Node):
         self.publisher_attitude = self.create_publisher(Vector3, '/attitude', 10) # output as [roll, pitch, yaw] angles
 
         self.prev_time = self.get_clock().now() # initialize time checkpoint
-        self.alpha = 0.98 # TODO: Determine an alpha value that works with the complementary filter
+        self.alpha = 0.95 # TODO: Determine an alpha value that works with the complementary filter
 
         # set up attitude params
         self.roll = 0.0
@@ -82,10 +82,10 @@ class CompFilterNode(Node):
             mag_accel_yaw = self.yaw
         
         # TODO: Fuse gyro, mag, and accel derivations in complemtnary filter
-        self.roll = self.alpha*accel_roll + (1-self.alpha)*gyro_roll
-        self.pitch = self.alpha*accel_pitch + (1-self.alpha)*gyro_pitch
-        self.yaw = self.alpha*mag_accel_yaw + (1-self.alpha)*gyro_yaw
-
+        self.roll = self.alpha*gyro_roll + (1-self.alpha)*accel_roll
+        self.pitch = self.alpha*gyro_pitch + (1-self.alpha)*accel_pitch
+        self.yaw = self.alpha*gyro_yaw + (1-self.alpha)*mag_accel_yaw
+        
         # Print results for sanity checking
         print(f"====== Complementary Filter Results ======")
         print(f"Speed || Freq = {round(1/dt,0)} || dt (ms) = {round(dt*1e3, 2)}")
