@@ -40,7 +40,8 @@ BLUE #Green
 RED = ((1, 170, 180), (15, 255, 255)) #ORANGE
 BLUE = ((36, 40, 89),  (68, 255, 255)) #GREEN
 
-
+# Color priority: Red >> Green >> Blue
+COLOR_PRIORITY = (RED, BLUE)
 
 
 # Color priority: Red >> Green >> Blue
@@ -55,8 +56,11 @@ contour_area = 0  # The area of contour
 color = None #true is red, false is blue, none is neither
 lastcolor = None
 lastarea = 0
+last_error =0 
+CURRCOLOR = "RED" 
+colortimer = 0
 
-circular_dist = 70
+circular_dist = 60
 
 kp = -0.05
 
@@ -91,6 +95,8 @@ def update_contour():
         contourR = rc_utils.get_largest_contour(contoursR, MIN_CONTOUR_AREA)
         contourB = rc_utils.get_largest_contour(contoursB, MIN_CONTOUR_AREA)
 
+        # if CURRCOLOR == "RED" : COLORPRIORITY = [contourR,contourB]
+        # if CURRCOLOR == "BLUE" : COLORPRIORITY = [contourB,contourR]
         if contourR is not None or contourB is not None:
                 if contourR is None:
                     contour = contourB
@@ -112,14 +118,16 @@ def update_contour():
                     contourB_area = rc_utils.get_contour_area(contourB)
                     contourR_area = rc_utils.get_contour_area(contourR) 
                     print(f'Barea {contourB_area} Rarea {contourR_area}')
-                    if contourR_area > contourB_area:
+                   # if contourR_area > contourB_area:
+                    if CURRCOLOR == "RED":
                         contour = contourR
                         color = "RED"
                         contour_center = rc_utils.get_contour_center(contourR)
                         contour_area = rc_utils.get_contour_area(contourR)
                         rc_utils.draw_contour(image,contourR)
                         rc_utils.draw_circle(image, contour_center)
-                    else:
+                    #else:
+                    if CURRCOLOR == "BLUE":
                         contour = contourB
                         color = "BLUE"
                         print("HIHI")
@@ -188,10 +196,10 @@ def updateWRIE():
     # print("----------------------------------------------------------")
     scan = certain_dist(scan, 70)
     # print("----------------------------------------------------------")
-    # front = rc_utils.get_lidar_average_distance(scan,0,55)
+    #front = rc_utils.get_lidar_average_distance(scan,0,45)
     # skinny_front = rc_utils.get_lidar_average_distance(scan,0,20)
-    Rside = rc_utils.get_lidar_average_distance(scan,315,50)
-    Bside = rc_utils.get_lidar_average_distance(scan,45,50)
+    Bside = rc_utils.get_lidar_average_distance(scan,315,50)
+    Rside = rc_utils.get_lidar_average_distance(scan,45,50)
 
     print(f'RSIDE: {Rside} and BSIDE: {Bside}')
 
@@ -206,7 +214,7 @@ def update():
     global speed,angle
     global color,contour_area,lastarea,lastcolor
     global circular_dist
-    global kp,state, cnt
+    global kp,state, cnt, last_error
 
 
 
@@ -224,21 +232,19 @@ def update():
     
     scan = rc.lidar.get_samples()
     # print("----------------------------------------------------------")
-    scan = certain_dist(scan, 50)
-    Rside = (scan,315,50)
-    Bside = (scan,45,50)
-    
+    scan = certain_dist(scan, 60)
+    #print(scan)
     # print("----------------------------------------------------------")
-    # front = rc_utils.get_lidar_average_distance(scan,0,55)
+    front = rc_utils.get_lidar_average_distance(scan,0,45)
     # skinny_front = rc_utils.get_lidar_average_distance(scan,0,20)
-    Rside = rc_utils.get_lidar_average_distance(scan,315,50)
-    Bside = rc_utils.get_lidar_average_distance(scan,45,50)
-    speed = 0.3
+    Rside = rc_utils.get_lidar_average_distance(scan,225,90)
+    Bside = rc_utils.get_lidar_average_distance(scan,135,90)
+    speed = 0.8
     dt = rc.get_delta_time()
     if contour_center is not None:
         if state == "searching":
             cnt = 0
-            speed = 0.4
+            speed = 0.75
             print("----------SEARCHING----------")
             # print("front: ", front, "color: ", color)
             if(lastcolor is None): # or color is None
@@ -251,8 +257,24 @@ def update():
                 state = "approaching"
         elif state == "approaching":
             print("----------APPROACHING----------")
+            
+            '''if(front < 20 and front != 0):
+                print("Imma do smth sillay")
+                speed = 0.1
+                if(color == "BLUE"):
+                    angle = -1
+                if(color == "RED"):
+                    angle = 1
+                    '''
+            
             if color is None: state= "pass"
             else:
+                if(color == lastcolor):
+                    colortime += 1 
+                    if(colortime >= 5): 
+                        CURRCOLOR = color 
+                        colortime = 0
+                speed = 0.68
                 print( "color: ", color)
                 setpoint = rc.camera.get_width()//2
                 print(f'contourcenter {contour_center[1]} setpoint {setpoint}')
@@ -261,58 +283,66 @@ def update():
                     setpoint = 0
                 elif(color == "BLUE"):
                     print("HELLLOLOOOOO")
-                    #setpoint = (4*rc.camera.get_width())//5
+                    #setpoint = (9*rc.camera.get_width())//10
                     setpoint = rc.camera.get_width()
                 error = (setpoint - contour_center[1])
-                speed = 0.2
-                kp = -0.03
-                angle = kp * error
-                angle = clamp(angle,-1,1) 
+                
+                kp = -0.085
+                kd = -0.009
+                angle = kp * error + kd * (last_error - error)
+                angle = clamp(angle,-1,1)
 
+
+                last_error = error
+            print("Rside distance: ", Rside, "Bside distance: ", Bside)
+            print("color:", color,  "lastcolor: ", lastcolor)
             cnt += dt
-            if(color == "RED" and color != lastcolor and color is not None and Rside ==0) and cnt > 0.25: 
+            if(color == None):
+                print("WHY TF IS THIS NOT HAPPENING")
+                state = "pass"
+            elif(color == "RED" and color != lastcolor and Rside > 70 ): #and color is not None 
                 cnt = 0
                 state = "pass"
-            if(color == "BLUE" and color != lastcolor and color is not None and Bside == 0) and cnt > 0.25: 
+            elif(color == "BLUE" and color != lastcolor and Bside > 70): 
                 cnt = 0
                 state = "pass"
+            
 
         elif state == "pass":
             cnt = 0
-            speed = 0.4
-            kp = -0.01
+            kp = -0.005
             print("----------PASS----------")
             print(f'contour area: { contour_area}')
-            print( "color: ", color)
-            if(contour_area > CONTOUR_CONE): state ="approaching"
-            else:
-                setpoint = rc.camera.get_width()//2
-                print(f'contourcenter {contour_center[1]} setpoint {setpoint}')
-                error = (setpoint - contour_center[1])
-                speed = 0.1
-                kp = -0.03
-                angle = kp * error
-                angle = clamp(angle,-1,1) 
-            # if(lastcolor == "RED"):
-            #     print("RED")
-            #     setpoint = circular_dist
-            #     error = setpoint - Rside
-            #     angle = kp * error
-            #     angle = clamp(angle, -1, 1)
-            # elif(lastcolor == "BLUE"):
-            #     print("BLUE")
-            #     setpoint = circular_dist
-            #     error = Bside - setpoint
-            #     angle = kp * error
-            #     angle = clamp(angle, -1, 1)
-            # if(skinny_front < 300 and skinny_front != 0):
-            #     lastcolor = None
-            #     state = "searching"
-                
-    if color is not None: lastcolor = color
-    # if Rside < 20 or Lside < 20:
-    #     angle = 0
-    speed = remap_range(speed, 0, 0.4, 0.7, 0.9)
+            print( "color: ", color, "lastcolor: ", lastcolor)
+            '''
+            if(color == None):
+                print("BROOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOWUHHHHHHHHHHHHHHHHHHHH")
+                print("BRO IM GONNA KSM")
+                if(lastcolor == "RED"):
+                    
+                    angle = -1
+                elif(lastcolor == "BLUE"):
+                    angle = 1
+            #if(contour_area > CONTOUR_CONE): state ="approaching"
+            el(contour_area > 1):'''
+            speed = 0.75
+            if lastcolor == "RED":  setpoint = 3 * rc.camera.get_width()//8
+            elif lastcolor == "BLUE": setpoint = 5 * rc.camera.get_width()//8
+            else: setpoint = rc.camera.get_width()//2
+            print(f'contourcenter {contour_center[1]} setpoint {setpoint}')
+            error = (setpoint - contour_center[1])
+            kp = -0.03
+            kd = 0
+           # kd = -0.005
+            angle = kp * error + kd * (last_error - error)
+            angle = clamp(angle,-1,1) 
+
+            last_error = error 
+            if color is not None: lastcolor = color
+                    
+
+    #speed = remap_range(speed, 0, 0.4, 0.73, 0.76)
+    #speed = 0.8
     rc.drive.set_speed_angle(speed, angle)
     print("speed: ", round(speed, 2), "angle: ", round(angle, 2))
 
