@@ -45,10 +45,10 @@ rc = racecar_core.create_racecar()
 
 # >> Constants
 # The smallest contour we will recognize as a valid contour
-MIN_CONTOUR_AREA = 90
+MIN_CONTOUR_AREA = 50
 
 # A crop window for the floor directly in front of the car
-CROP_FLOOR = ((rc.camera.get_height()//6, 0), (2*rc.camera.get_height()//3, rc.camera.get_width()))
+CROP_FLOOR = ((rc.camera.get_height()//6, 0), (4*rc.camera.get_height()//6, rc.camera.get_width()))
 
 # TODO Part 1: Determine the HSV color threshold pairs for GREEN and RED
 # Colors, stored as a pair (hsv_min, hsv_max) Hint: Lab E!
@@ -70,7 +70,7 @@ contour_area = 0  # The area of contour
 cntr = 0
 last_error = 0
 last_angle  = 0
-
+past_five = []
 ########################################################################################
 # Functions
 ########################################################################################
@@ -131,7 +131,7 @@ def update():
     global angle
     global cntr
     global last_error
-    global last_angle 
+    global last_angle, past_five
 
     # Search for contours in the current color image
     update_contour()
@@ -143,26 +143,38 @@ def update():
     if contour_center is not None:
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
-        kp = -0.009 #0.05 works but dive #0.007
-        kd = -0.003 # -0.006, -0.009
-        dterm = (error - last_error)/ rc.get_delta_time()
+        kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
+        kd = -0.0004#-0.0065 # -0.006, -0.009
+        past_five.append(error)
+        dterm = 0
+        if len(past_five) > 5:
+            past_five.pop(0)
+        if len(past_five) == 5:
+             e0, e1, e2, e3, e4 = past_five
+             # apply the five-point backward-difference formula
+             dterm = (25*e4- 48*e3+ 36*e2- 16*e1+  3*e0) / (12)
         angle = kp * error + kd*dterm
+        print(dterm)
         angle = max(-1, min(1, angle))
         cntr = 0
 
         last_error = error 
-        last_angle = angle 
+        if(last_angle != 0):
+            last_angle = angle 
+        print("speed: ", speed, "angle: ", angle, "error : " , error, "dterm :", dterm)
     else: 
+        print("dont see anything")
         cntr += 1
-        if cntr > 10:
+        if cntr > 5:
             angle = last_angle 
 
-    # if angle ==-1:
-    #     speed = remap_range(angle, -1, 0, 0.9, 1)
-    # elif angle == 1:
-    #     speed = remap_range(angle, 0, 1, 1, 0.8)
-    # else: 
-    speed = 1
+    if angle < 0:
+        speed = remap_range(angle, -1, 0, 0.7, 1)
+    elif angle > 0:
+        speed = remap_range(angle, 0, 1, 1, 0.7)
+    else: 
+        speed = 0.8
+
 
     # Use the triggers to control the car's speed
     rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
@@ -171,6 +183,7 @@ def update():
     # with open("log.txt", "a") as f:
     #     if rt:
     #         print("angle:", angle, "speed:", speed, file=f)
+    # print("speed: ", speed, "angle: ", angle, "error : " , error, "dterm :", dterm)
     rc.drive.set_speed_angle(speed, angle)
 
 # [FUNCTION] update_slow() is similar to update() but is called once per second by
