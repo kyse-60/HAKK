@@ -42,8 +42,8 @@ from pycoral.utils.edgetpu import run_inference
 
 # Define paths to model and label directories
 default_path = 'models' # location of model weights and labels
-model_name = 'signmodel.tflite'
-label_name = 'signs.txt'
+model_name = 'carmodel_edgetpu.tflite'
+label_name = 'cars.txt'
 
 model_path = default_path + "/" + model_name
 label_path = default_path + "/" + label_name
@@ -54,7 +54,7 @@ NUM_CLASSES = 6
 
 # If this file is nested inside a folder in the labs folder, the relative path should
 # be [1, ../../library] instead.
-sys.path.insert(1, "../../library")
+sys.path.insert(1, "./library")
 import racecar_core
 import racecar_utils as rc_utils
 
@@ -152,19 +152,27 @@ def update_object():
         interpreter.allocate_tensors()
         labels = read_label_file(label_path)
         inference_size = input_size(interpreter)
-        #running model over image and getting objs
+        scale_x, scale_y = rc.camera.get_width() / inference_size[0], rc.camera.get_height() / inference_size[1]
+        #print(inference_size)
+        image = cv.resize(image, inference_size)
         run_inference(interpreter, image.tobytes())
-        height, width, channels = cv_im.shape
-        scale_x, scale_y = width / inference_size[0], height / inference_size[1]
         objs = get_objects(interpreter, SCORE_THRESH)[:NUM_CLASSES]
-        if(objs.len() > 0):
-            if(objs.len() == 1):
+        if(len(objs) > 0):
+            print("detecting")
+            if(len(objs) == 1):
                 curr_obj = objs[0]
             else:
-                print("BAD!-COME BACK TO")
+                max = 0
+                for OBJ in objs:
+                    bbox = OBJ.bbox.scale(scale_x, scale_y)
+                    area = (int(bbox.xmax) - int(bbox.xmin))* (int(bbox.ymax) - int(bbox.ymin))
+                    if area > max:
+                        curr_obj = OBJ
+                        print(f'there are multiple')
         else:
             curr_obj is None
         if curr_obj is not None:
+            #print(curr_obj.score)
             if(curr_obj.score > 0.55): 
                     Confirmed_sign = curr_obj 
                     sign_class = Confirmed_sign.id 
@@ -213,14 +221,15 @@ def update():
 
     # Search for signs 
     update_object()
-
+    print(Confirmed_sign is None)
     #angle control
     if (Confirmed_sign is not None):
         setpoint = rc.camera.get_width() //2 # middle - 0
         offset = sign_center - setpoint 
+        print(sign_center , "and", offset)
         kp = 0.005
         kd = 0.000
-        speed = 1
+        speed = 0.7
         P = kp * (offset) 
         D = kd * (offset - last_offset)
         angle = P +D 
@@ -230,9 +239,9 @@ def update():
         angle = 0
     angle = rc_utils.clamp(angle, -1, 1)
 
-    CSVMAKE(True)
+  #  CSVMAKE(True)
 
-    
+    rc.drive.set_speed_angle(speed, angle)
 
 
 # [FUNCTION] update_slow() is similar to update() but is called once per second by

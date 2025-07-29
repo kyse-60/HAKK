@@ -71,6 +71,9 @@ cntr = 0
 last_error = 0
 last_angle  = 0
 past_five = []
+
+kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
+kd = -0.0004
 ########################################################################################
 # Functions
 ########################################################################################
@@ -114,6 +117,11 @@ def remap_range(value, old_lower, old_upper, new_lower, new_upper):
 def start():
     global speed
     global angle
+    global kp 
+    global kd 
+    
+    kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
+    kd = -0.0004
     with open("log.txt", "a") as f:
         print("\n\nNEW\n\n", file=f)
 
@@ -132,6 +140,8 @@ def update():
     global cntr
     global last_error
     global last_angle, past_five
+    global kp 
+    global kd 
 
     # Search for contours in the current color image
     update_contour()
@@ -143,8 +153,8 @@ def update():
     if contour_center is not None:
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
-        kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
-        kd = -0.0004#-0.0065 # -0.006, -0.009
+        # kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
+        # kd = -0.0004#-0.0065 # -0.006, -0.009
         past_five.append(error)
         dterm = 0
         if len(past_five) > 5:
@@ -159,7 +169,7 @@ def update():
         cntr = 0
 
         last_error = error 
-        if(last_angle != 0):
+        if(last_angle != 0):a
             last_angle = angle 
         print("speed: ", speed, "angle: ", angle, "error : " , error, "dterm :", dterm)
     else: 
@@ -177,8 +187,17 @@ def update():
 
 
     # Use the triggers to control the car's speed
-    rt = rc.controller.get_trigger(rc.controller.Trigger.RIGHT)
-    lt = rc.controller.get_trigger(rc.controller.Trigger.LEFT)
+    InP = rc.controller.Button.A.was_pressed()
+    DeP = rc.controller.Button.B.was_pressed()
+
+    InD = rc.controller.Button.X.was_pressed()
+    DeD = rc.controller.Button.Y.was_pressed()
+
+    if InP: kp -= 0.0001
+    if Dep: kp += 0.0001
+    if InD: kd -= 0.0001
+    if DeD: kd += 0.0001
+    
     # speed = 0.8 if angle == 0 else 0.5
     # with open("log.txt", "a") as f:
     #     if rt:
