@@ -4,7 +4,7 @@ import time
 import cv2 as cv # type: ignore
 import numpy as np # type: ignore
 
-sys.path.insert(1, "../library")
+sys.path.insert(0, "library")
 import racecar_core # type: ignore
 import racecar_utils as rc_utils # type: ignore
 
@@ -16,8 +16,8 @@ from pycoral.utils.edgetpu import run_inference # type: ignore
 
 # Define paths to model and label directories
 default_path = 'models' # location of model weights and labels
-model_name = 'car-follow-v2_edgetpu.tflite'
-label_name = 'objects.txt'
+model_name = 'ARROW.tflite'
+label_name = 'arrow.txt'
 model_path = default_path + "/" + model_name
 label_path = default_path + "/" + label_name
 
@@ -48,6 +48,12 @@ center = 160
 area = 0
 
 tag = {1:'Left' , 2: 'Right'}
+type = "nah"
+rcount = 0
+lcount = 0
+count = 0
+last_type = "nah"
+changed = False
                 
 # [FUNCTION] Modify image to label objs and score
 def append_objs_to_img(cv2_im, inference_size, objs, labels):
@@ -72,7 +78,10 @@ def append_objs_to_img(cv2_im, inference_size, objs, labels):
 
 # Called once on start
 def start():
+    global changed 
+    
     rc.drive.set_speed_angle(0, 0)
+    changed = False
 
 # Called every frame
 def update():
@@ -80,6 +89,9 @@ def update():
     
     global speed, angle  
     global prev_error
+    global type 
+    global count 
+    global changed
 
     error = center - 160
 
@@ -98,14 +110,37 @@ def update():
     # Clamp the angle 
     prev_angle = angle
     dangle = angle - prev_angle
+
+    if type == "right" and changed:
+        speed = 0.55
+        print("count", count)
+        count += 1
+        if count < 100:
+            cangle = -0.8
+        elif count < 140:
+            cangle = 0.6
+        else: 
+            cangle = 0
+    elif type == "left" and changed: 
+        speed = 0.55
+        print("count ", count)
+        count += 1
+        if count < 100:
+            cangle = 0.8
+        elif count < 140:
+            cangle = -0.6
+        else:
+            cangle = 0
+    else: 
+        cangle = 0
+        speed = 0
     
-    cangle=rc_utils.clamp(angle, -0.5,0.5)
-    
-    speed = 0.55
+
     # if area > 17000:
     #     rc.drive.set_speed_angle(0, 0)
     # else:
     #     pass
+    print(f'angle {cangle}')
     rc.drive.set_speed_angle(speed, cangle)
         
     prev_error=error
@@ -116,36 +151,54 @@ def update_slow():
     global center
     global sign
     global area
+    global rcount , lcount 
+    global type 
+    global last_type
+    global count
+    global changed
     frame = rc.camera.get_color_image()
-
-    if frame is not None: 
-        markers = rc_utils.get_ar_markers(frame)
     
-    # if frame is not None:
-    #     rgb_image = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-    #     rgb_image = cv.resize(rgb_image, inference_size)
+    if frame is not None:
+        rgb_image = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        rgb_image = cv.resize(rgb_image, inference_size)
         
-    #     run_inference(interpreter, rgb_image.tobytes())
-    #     objs = get_objects(interpreter, SCORE_THRESH)[:NUM_CLASSES]
-    #     image = append_objs_to_img(frame, inference_size, objs, labels)
+        run_inference(interpreter, rgb_image.tobytes())
+        objs = get_objects(interpreter, SCORE_THRESH)[:NUM_CLASSES]
+        image = append_objs_to_img(frame, inference_size, objs, labels)
 
-    #     rc.display.show_color_image(image)
-    #     if len(objs) == 0:
-    #         sign = ""
-    #     for obj in objs:
-    #         if obj.score > 0.6:
-    #             sign = tag[obj.id+1]
-    #             if sign == "Right":
-    #                 center = 250
-    #             elif sign == "LEFT":
-    #                 center = 10
-    #             # if sign == "Car":
-    #             #     loc = (obj.bbox.xmin + obj.bbox.xmax)//2
-    #             #     area = (obj.bbox.xmin - obj.bbox.xmax ) * (obj.bbox.ymin - obj.bbox.ymax )
-    #             #     center = loc
-    #             print(f"{tag[obj.id+1]}")
-    #             break
-    #         sign = ""
+        rc.display.show_color_image(image)
+        if len(objs) == 0:
+            sign = ""
+        for obj in objs:
+            if obj.score > 0.6:
+                sign = tag[obj.id+1]
+                if sign == "Right":
+                    rcount += 1
+                    if(rcount > 10): 
+                        type = "right"
+                        print("type now right")
+                else:
+                    rcount = 0
+                if sign == "Left":
+                    lcount += 1
+                    if(lcount > 10): 
+                        type = "left"
+                        print("type now left")          
+                else:
+                    lcount = 0
+            if last_type != type and last_type != "nah":
+                count = 0
+                changed = True
+        
+            last_type = type 
+        
+                # if sign == "Car":
+                #     loc = (obj.bbox.xmin + obj.bbox.xmax)//2
+                #     area = (obj.bbox.xmin - obj.bbox.xmax ) * (obj.bbox.ymin - obj.bbox.ymax )
+                #     center = loc
+            print(f"{tag[obj.id+1]}")
+            break
+            sign = ""
 
 if __name__ == "__main__":
     rc.set_update_slow_time(0.1)
