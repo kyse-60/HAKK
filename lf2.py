@@ -60,7 +60,7 @@ ORANGE = ((4, 75, 169), (15, 255, 255)) # The HSV range for the color red
 # ORANGE = ((9, 68, 169), (15, 255, 255)) # The HSV range for the color red
 GREEN = ((30, 58, 57), (80, 255, 255))
 # Color priority: Red >> Green >> Blue
-COLOR_PRIORITY = (ORANGE, GREEN)
+COLOR_PRIORITY = (ORANGE, )
 
 # >> Variables
 speed = 0.0  # The current speed of the car
@@ -72,8 +72,11 @@ last_error = 0
 last_angle  = 0
 past_five = []
 
-kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
-kd = -0.0004
+
+
+counter = 0
+# kp = -0.0058   
+# kd = -0.0006 #-0.0005 works but oscilates on straight
 ########################################################################################
 # Functions
 ########################################################################################
@@ -119,11 +122,12 @@ def start():
     global angle
     global kp 
     global kd 
+    global counter
     
-    kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
-    kd = -0.0004
-    with open("log.txt", "a") as f:
-        print("\n\nNEW\n\n", file=f)
+    #kp = -0.0058    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
+    #kd = -0.0004
+    #with open("log.txt", "a") as f:
+    #    print("\n\nNEW\n\n", file=f)
 
 # [FUNCTION] After start() is run, this function is run once every frame (ideally at
 # 60 frames per second or slower depending on processing speed) until the back button
@@ -142,7 +146,10 @@ def update():
     global last_angle, past_five
     global kp 
     global kd 
+    global counter
 
+    global contour_area
+    global contour_center
     # Search for contours in the current color image
     update_contour()
 
@@ -153,6 +160,8 @@ def update():
     if contour_center is not None:
         setpoint = rc.camera.get_width()//2
         error = (setpoint - contour_center[1])
+        kp = -0.0058   
+        kd = -0.0000 #-0.0007
         # kp = -0.0055    #-0.06 osolates like crazy, not in a bangbangy kinda way but not staying on the line                     #0.05 works but dive #0.007
         # kd = -0.0004#-0.0065 # -0.006, -0.009
         past_five.append(error)
@@ -164,39 +173,51 @@ def update():
              # apply the five-point backward-difference formula
              dterm = (25*e4- 48*e3+ 36*e2- 16*e1+  3*e0) / (12)
         angle = kp * error + kd*dterm
-        print(dterm)
         angle = max(-1, min(1, angle))
         cntr = 0
 
+        print("speed: ", round(speed, 2), " angle: ", round(angle, 2), " lastangle: ", round(last_angle, 2), " error: " , round(error, 2), " dterm :", round(dterm, 2), " contour_area: ", round(contour_area, 2), " contour_center: ", contour_center)
+
+
+        
+        if(last_angle == angle):
+            counter += 1
+            if(counter >= 10):
+                print("===============================")
+                print("contour_area: ", round(contour_area, 2), " contour_center: ", contour_center)
+                print("===============================")
+        else:
+            counter = 0
+
+        
         last_error = error 
-        if(last_angle != 0):a
-            last_angle = angle 
-        print("speed: ", speed, "angle: ", angle, "error : " , error, "dterm :", dterm)
+        last_angle = angle 
+        
     else: 
         print("dont see anything")
         cntr += 1
         if cntr > 5:
             angle = last_angle 
 
-    if angle < 0:
-        speed = remap_range(angle, -1, 0, 0.7, 1)
-    elif angle > 0:
-        speed = remap_range(angle, 0, 1, 1, 0.7)
+    if angle < 0.1:
+        speed = remap_range(angle, -1, 0, 0.6, 0.9)
+    elif angle > -0.1:
+        speed = remap_range(angle, 0, 1, 0.9, 0.6)
     else: 
-        speed = 0.8
+        speed = 1
 
 
     # Use the triggers to control the car's speed
-    InP = rc.controller.Button.A.was_pressed()
-    DeP = rc.controller.Button.B.was_pressed()
+    # InP = rc.controller.Button.A()
+    # DeP = rc.controller.Button.B()
 
-    InD = rc.controller.Button.X.was_pressed()
-    DeD = rc.controller.Button.Y.was_pressed()
+    # InD = rc.controller.Button.X()
+    # DeD = rc.controller.Button.Y()
 
-    if InP: kp -= 0.0001
-    if Dep: kp += 0.0001
-    if InD: kd -= 0.0001
-    if DeD: kd += 0.0001
+    # if InP: kp -= 0.0001
+    # if Dep: kp += 0.0001
+    # if InD: kd -= 0.0001
+    # if DeD: kd += 0.0001
     
     # speed = 0.8 if angle == 0 else 0.5
     # with open("log.txt", "a") as f:
@@ -215,6 +236,7 @@ def update_slow():
     After start() is run, this function is run at a constant rate that is slower
     than update().  By default, update_slow() is run once per second
     """
+    # print(f'kp {kp} and kd {kd}')
     #print(rc.camera.get_width())
     # Print a line of ascii text denoting the contour area and x-position
     if rc.camera.get_color_image() is None:

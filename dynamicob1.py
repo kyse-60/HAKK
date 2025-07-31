@@ -117,32 +117,35 @@ def update_slow():
     global sign
     global area
     frame = rc.camera.get_color_image()
-    
-    if frame is not None:
-        rgb_image = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-        rgb_image = cv.resize(rgb_image, inference_size)
-        
-        run_inference(interpreter, rgb_image.tobytes())
-        objs = get_objects(interpreter, SCORE_THRESH)[:NUM_CLASSES]
-        image = append_objs_to_img(frame, inference_size, objs, labels)
 
-        rc.display.show_color_image(image)
-        if len(objs) == 0:
-            sign = ""
-        for obj in objs:
-            if obj.score > 0.6:
-                sign = tag[obj.id+1]
-                if sign == "Right":
-                    center = 250
-                elif sign == "LEFT":
-                    center = 10
-                # if sign == "Car":
-                #     loc = (obj.bbox.xmin + obj.bbox.xmax)//2
-                #     area = (obj.bbox.xmin - obj.bbox.xmax ) * (obj.bbox.ymin - obj.bbox.ymax )
-                #     center = loc
-                print(f"{tag[obj.id+1]}")
-                break
-            sign = ""
+    if frame is not None: 
+        markers = rc_utils.get_ar_markers(frame)
+    
+    # if frame is not None:
+    #     rgb_image = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+    #     rgb_image = cv.resize(rgb_image, inference_size)
+        
+    #     run_inference(interpreter, rgb_image.tobytes())
+    #     objs = get_objects(interpreter, SCORE_THRESH)[:NUM_CLASSES]
+    #     image = append_objs_to_img(frame, inference_size, objs, labels)
+
+    #     rc.display.show_color_image(image)
+    #     if len(objs) == 0:
+    #         sign = ""
+    #     for obj in objs:
+    #         if obj.score > 0.6:
+    #             sign = tag[obj.id+1]
+    #             if sign == "Right":
+    #                 center = 250
+    #             elif sign == "LEFT":
+    #                 center = 10
+    #             # if sign == "Car":
+    #             #     loc = (obj.bbox.xmin + obj.bbox.xmax)//2
+    #             #     area = (obj.bbox.xmin - obj.bbox.xmax ) * (obj.bbox.ymin - obj.bbox.ymax )
+    #             #     center = loc
+    #             print(f"{tag[obj.id+1]}")
+    #             break
+    #         sign = ""
 
 if __name__ == "__main__":
     rc.set_update_slow_time(0.1)
