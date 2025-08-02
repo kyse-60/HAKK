@@ -53,15 +53,125 @@ global error
 def cap(val):
     return min(max(val, -1), 1)
 
+def fit_circle_ls(x, y):
+    """
+    Fit a circle to >3 points (xi, yi) via linear least squares.
+    Returns (xc, yc, R).
+    """
+    A = np.column_stack([x, y, np.ones_like(x)])
+    b = -(x*x + y*y)
+    D, E, F = np.linalg.lstsq(A, b, rcond=None)[0]
+    xc, yc = -D/2, -E/2
+    R = np.sqrt(xc*xc + yc*yc - F)
+    return xc, yc, R
+
+def fill_missing_lidar_circular(scan, angles, window=5):
+    N   = scan.size
+    out = scan.astype(float).copy()
+    zero = (out == 0)
+
+    # 1) find all zero–spans linearly
+    spans = []
+    in_zero = False
+    for i, z in enumerate(zero):
+        if z and not in_zero:
+            start, in_zero = i, True
+        elif (not z) and in_zero:
+            spans.append((start, i-1)); in_zero = False
+    if in_zero:
+        spans.append((start, N-1))
+
+    # 2) only merge if we actually have at least two spans,
+    #    and the first starts at 0 and the last ends at N-1
+    if len(spans) >= 2 and spans[0][0] == 0 and spans[-1][1] == N-1:
+        s0, e0 = spans.pop(0)
+        s1, e1 = spans.pop(-1)
+        spans.insert(0, (s1, e0))
+
+    # 3) if spans is empty, there’s nothing to fill
+    if not spans:
+        return out
+
+    # 4) process each span exactly as before
+    for s, e in spans:
+        # collect neighbor indices mod N
+        left_idxs  = [(s + i) % N for i in range(-window, 0)]
+        right_idxs = [(e + i) % N for i in range(1, window+1)]
+        neigh = np.array(left_idxs + right_idxs, dtype=int)
+        valid = neigh[out[neigh] > 0]
+        if valid.size < 3:
+            continue
+
+        # build XY coords
+        rs     = out[valid]
+        thetas = angles[valid]
+        xs, ys = rs*np.cos(thetas), rs*np.sin(thetas)
+
+        # fit circle (least squares)
+        xc, yc, R = fit_circle_ls(xs, ys)
+
+        # interpolation anchors (wrapped)
+        li = (s-1) % N
+        ri = (e+1) % N
+        # linearized positions for interpolation
+        li_m = li if li >= s else li + N
+        ri_m = ri if ri >= s else ri + N
+
+        # figure out missing indices (handles wrap)
+        if s <= e:
+            missing = range(s, e+1)
+        else:
+            missing = list(range(s, N)) + list(range(0, e+1))
+
+        # fill each missing beam
+        for k in missing:
+            a = angles[k]
+            C = xc*np.cos(a) + yc*np.sin(a)
+            disc = C*C - (xc*xc + yc*yc - R*R)
+
+            # “linear” fallback
+            k_m = k if k >= s else k + N
+            lin = np.interp(k_m, [li_m, ri_m], [out[li], out[ri]])
+
+            if disc < 0:
+                r_est = lin
+            else:
+                r1 = C + np.sqrt(disc)
+                r2 = C - np.sqrt(disc)
+                r_est = r1 if abs(r1-lin) < abs(r2-lin) else r2
+
+            out[k] = r_est
+
+    return out
+def remap_range(value, old_lower, old_upper, new_lower, new_upper):
+    normalized = (value - old_lower) / (old_upper - old_lower)
+    new_value = normalized * (new_upper - new_lower) + new_lower
+    return new_value
+
 class WallFollower():
     def __init__(self, rc):
         self.rc = rc
         # ---- tunables ----
-        self.amt_consider    = 120   # window size in samples (v)
+        # parameters for low speed
+        self.amt_consider    = 90   # window size in samples (v)
         self.min_dist_thresh = 90  # minimum distance in window (m)
         self.avg_dist_thresh = 90    # average distance in window (m)
-        self.cruise_speed    = 0.5    # forward speed
-        self.window_srch = 100
+        self.cruise_speed    = 0.7    # forward speed
+        self.window_srch = 90
+        # ------------------
+        # parameters for high speed
+        # self.amt_consider    = 160   # window size in samples (v)
+        # self.min_dist_thresh = 100  # minimum distance in window (m)
+        # self.avg_dist_thresh = 100    # average distance in window (m)
+        # self.cruise_speed    = 0.9    # forward speed
+        # self.window_srch = 100
+         # ------------------
+        # parameters for cornering
+        # self.amt_consider    = 160   # window size in samples (v)
+        # self.min_dist_thresh = 50  # minimum distance in window (m)
+        # self.avg_dist_thresh = 50    # average distance in window (m)
+        # self.cruise_speed    = 0.6    # forward speed
+        # self.window_srch = 180
         # ------------------
 
     def update(self):
@@ -71,6 +181,12 @@ class WallFollower():
         # scan[scan==0] = 500
         # print(len(scan))
         # print(scan[-180])#scan[180], scan[270*2])
+        # if len(scan) == 0:
+        #     return 0.5, 0
+        # scan[scan > 300] = 0
+        # poses = scan==0
+        # scan = fill_missing_lidar_circular(scan, np.linspace(-np.pi, np.pi, scan.size, endpoint=False))
+        # scan[poses] += 50
         N    = len(scan)                                 # =720
         v    = self.amt_consider
         h_v  = v // 2
@@ -124,17 +240,23 @@ class WallFollower():
             #     speed = 0.5 * self.cruise_speed
             # else:
             #     speed    = self.cruise_speed
-            speed    = self.cruise_speed
-            steering = cap(angle_deg / (self.window_srch))
+            # speed    = self.cruise_speed
+            angle = cap(angle_deg / (self.window_srch))
+            # angle = cap(4*angle_deg / (self.window_srch))
+            if angle < -0.4:
+                speed = remap_range(angle, -1, 0, 0.6, 0.8)
+            elif angle > 0.4:
+                speed = remap_range(angle, 0, 1, 0.8, 0.6)
+            else: 
+                speed = 0.8
             print(angle_deg, best_score)
-            rc.display.show_text("A")
+            rc.display.show_text(str(int(angle_deg)))
         else:
             # no valid gap found → stop
             speed    = 0.5
-            steering = 0.0
+            angle = 0.0
 
-        return speed, steering
-        return 0, 0
+        return speed, angle
 
 
 

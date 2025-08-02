@@ -3,7 +3,7 @@ MIT BWSI Autonomous RACECAR
 MIT License
 racecar-neo-outreach-labs
 
-File Name: wf2.py
+File Name: wall_follower_2.py
 
 Title: Wall Follower 2
 
